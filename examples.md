@@ -1,6 +1,6 @@
 # GTNH template port — worked examples
 
-Consult when the target is Calculator, SonarCore, or a similar CoFH/optional-compat tree. Workflow stays in [SKILL.md](SKILL.md); file IDs in [reference.md](reference.md).
+Consult when the target is Calculator, SonarCore, SimplyJetpacks, or a similar CoFH/optional-compat tree. Workflow stays in [SKILL.md](SKILL.md); file IDs in [reference.md](reference.md).
 
 ## Calculator 1.9.11 (Ollie Lansdell)
 
@@ -81,3 +81,38 @@ Circular: Calculator hard-depends on this mod — keep Calculator `compileOnly`.
 - `Sound engine started`
 
 Optional-provider “wasn't loadable” + texture-missing are not failures. Artifact `SonarCore-1.1.3.jar`.
+
+## SimplyJetpacks 1.5.3 (tonius11)
+
+FG 1.2, no `gradle.properties`, no `dependencies {}`. Version `1.5.3` from `build.gradle`. AT via `jar.manifest FMLAT=simplyjetpacks_at.cfg`.
+
+Identity:
+
+- `modName` = `Simply Jetpacks` (mcmod; `@Mod` has no `name`)
+- `modId` = `simplyjetpacks`
+- `modGroup` = `tonius.simplyjetpacks`
+- `customArchiveBaseName` = `SimplyJetpacks-MC1.7.10`
+- `accessTransformersFile` = `simplyjetpacks_at.cfg`
+- `generateGradleTokenClass` = `tonius.simplyjetpacks.Tags` (same package — no import)
+- `gtnh.modules.gitVersion = false`; `addon.gradle` `ext.modVersion = "1.5.3"`
+
+Overlay: zip did not replace `mcmod.info` or add ExampleMod sources. Removed leftover Groovy `build.gradle` after `.old` backup.
+
+Runtime CoFHLib via `Class.forName("cofh.lib.util.helpers.FireworksHelper$Explosion")` — not `required-after`. Local `libs/CoFHLib-[1.7.10]1.0.2-160-dev.jar` replaced with:
+
+```
+devOnlyNonPublishable(rfg.deobf("curse.maven:cofh-lib-220333:2388747"))
+```
+
+`@Mod` `after:` ThermalExpansion / RedstoneArsenal / RArm / EnderIO / BuildCraft|Core — GameRegistry + IMC only, no type imports, no compileOnly.
+
+`runClient25` success:
+
+- `LoadedMods […, simplyjetpacks, …]`
+- `Forge Mod Loader has successfully loaded 16 mods`
+- `Starting Simply Jetpacks` / `Successfully found CoFHLib`
+- `Sound engine started`
+
+Texture-missing is not a failure. Artifact `SimplyJetpacks-MC1.7.10-1.5.3.jar`.
+
+After green: dropped `*.old`, `LICENSE-template`, eclipse xml, unused `libs/` jar.

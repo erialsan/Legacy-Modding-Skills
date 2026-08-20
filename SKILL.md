@@ -34,26 +34,27 @@ Compile-breakers required for `build` / `runClient25` are in scope. Full API/fea
 Copy and track:
 
 ```
-- [ ] Backup build.gradle, gradle.properties, mcmod.info → .old (or .back)
-- [ ] Overlay migration.zip; rewrite to template form
+- [ ] Backup existing build.gradle, gradle.properties, mcmod.info → .old (or .back); skip missing
+- [ ] Overlay migration.zip; drop leftover Groovy build.gradle; chmod +x gradlew
 - [ ] Inventory from backups (do not invent)
 - [ ] Identity → gradle.properties
 - [ ] mcmod.info tokens
 - [ ] addon.gradle extras / version
 - [ ] dependencies.gradle + repositories.gradle
-- [ ] Delete ExampleMod leftovers
+- [ ] Delete ExampleMod leftovers if present
 - [ ] Compile-breakers
 - [ ] spotlessApply → build → runClient25
+- [ ] After green: drop *.old, LICENSE-template, unused eclipse/libs
 - [ ] updateBuildScript only if asked
 ```
 
-Read [reference.md](reference.md) when resolving artifacts, hard-dep modids, FMP/CCC, or curse file IDs. Read [examples.md](examples.md) when the target is Calculator, SonarCore, or a similar CoFH/optional-compat tree.
+Read [reference.md](reference.md) when resolving artifacts, hard-dep modids, FMP/CCC, curse file IDs, or an FG 1.2 tree with empty `dependencies {}`. Read [examples.md](examples.md) when the target is Calculator, SonarCore, SimplyJetpacks, or a similar CoFH/optional-compat tree.
 
 ## 1. Backup + overlay
 
 No pre-work. Do not ask the user to overlay first.
 
-1. Copy (do not delete) these to the same path + `.old`. If that exists, `.back`:
+1. Copy (do not delete) these to the same path + `.old` **if they exist**. If that exists, `.back`. Skip missing files (many FG 1.2 trees have no `gradle.properties`):
    - `build.gradle` / `build.gradle.kts`
    - `gradle.properties`
    - `src/main/resources/mcmod.info`
@@ -65,9 +66,12 @@ curl -fsSL -o /tmp/gtnh-migration.zip \
   https://github.com/GTNewHorizons/ExampleMod1.7.10/releases/download/master-packages/migration.zip
 unzip -o /tmp/gtnh-migration.zip
 rm /tmp/gtnh-migration.zip
+chmod +x gradlew
 ```
 
-Replaces wrapper, `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `dependencies.gradle`, `repositories.gradle`, `mcmod.info`, and ExampleMod sources. Backups stay. Official `migration.md` keeps `build.gradle` until deps are copied — backups make a full overlay safe.
+Replaces wrapper, `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `dependencies.gradle`, `repositories.gradle`, plus template extras (`.editorconfig`, `.github/`, `CODEOWNERS`, `jitpack.yml`, `.java-version`, `gradle-daemon-jvm.properties`, `LICENSE-template`). It does **not** replace `mcmod.info`, does **not** add `com/myname/mymodid` sources, and does **not** delete the old Groovy `build.gradle`. Backups stay until §9 is green.
+
+Remove leftover Groovy `build.gradle` immediately (`.old` is the backup) so Gradle uses `build.gradle.kts`. Two build files is a wrong-script risk. Official `migration.md` keeps `build.gradle` until deps are copied — the `.old` copy makes a full overlay safe.
 
 3. Rewrite **template** files from the backups (never edit `.old`/`.back` in place):
    - identity → `gradle.properties` (§3)
@@ -83,14 +87,16 @@ Restore deleted `.gitmodules` if a gitlink remains (`git ls-files -s <path>` mod
 
 Read, do not invent. Prefer `*.old` / `*.back` over the post-overlay template copies:
 
-- `build.gradle` / `build.gradle.old` — `group`, `archivesBaseName`, `minecraft.version`, `replaceIn` / `@VERSION@`, extra `sourceSets`, repos, `dependencies`
-- `gradle.properties` / `.old` — `modName`/`modId`/`modGroup`, mixins, AT, `disableSpotless`
-- `src/main/resources/mcmod.info` / `.old` — name, authors, URL, deps
-- `version.properties` / changelog — numeric version if no git tags
+- `build.gradle` / `build.gradle.old` — `group`, `archivesBaseName`, `version = "…"`, `minecraft.version`, `replaceIn` / `@VERSION@`, extra `sourceSets`, repos, `dependencies`, `jar { manifest { 'FMLAT': '…_at.cfg' } }`
+- `gradle.properties` / `.old` — `modName`/`modId`/`modGroup`, mixins, AT, `disableSpotless` (file may not exist)
+- `src/main/resources/mcmod.info` / `.old` — name, authors, URL, deps. `@Mod` may omit `name` — use mcmod
+- `version.properties` / changelog / old `version =` — numeric version if no git tags
 - `@Mod` class — `modid`, `name`, `version`, `dependencies`. `Loader.isModLoaded("X")` / old `requiredMods` spelling is **not** the FML id
+- `Class.forName("cofh.lib…")` / a thrown "X is not installed" exception — runtime-required even with no `required-after`
+- `libs/*-dev.jar` and Eclipse `.classpath` / `eclipse-*-settings.xml` — FG 1.2 often has **no** `dependencies {}`; compile path was Eclipse + `libs/`
 - `.gitmodules` — extra source trees (e.g. BeefCore)
 - `src/api/java` **or** already-in-tree `src/main/java/{cofh,ic2,powercrystals}/` — vendored compile-only APIs. Do **not** also add matching maven deps (duplicate classes)
-- leftover ExampleMod tree `src/main/java/com/myname/mymodid/` — delete after `modGroup` is set
+- leftover ExampleMod tree `src/main/java/com/myname/mymodid/` — delete after `modGroup` is set if present (current zip often ships none)
 
 ## 3. Identity → `gradle.properties`
 
@@ -109,9 +115,9 @@ Also set:
 - `enableModernJavaSyntax = jabel` unless the user wants `modern` / `jvmDowngrader`. Old boolean `true` → `jabel`
 - `includeWellKnownRepositories = true` (CurseMaven)
 - `useModGroupForPublishing = false` for GTNH-style `com.github.GTNewHorizons` coordinates (old template default; new defaults `true`)
-- carry `accessTransformersFile`, `usesMixins`, `mixinsPackage`, `mixinPlugin` from `.old`. A hand-written `mixins.<modId>.json` is fine if its `package` matches `mixinsPackage`. Do not convert to IMixins unless asked
+- carry `accessTransformersFile`, `usesMixins`, `mixinsPackage`, `mixinPlugin` from `.old` **or** from old `jar.manifest 'FMLAT'` (file already under `src/main/resources/META-INF/`). A hand-written `mixins.<modId>.json` is fine if its `package` matches `mixinsPackage`. Do not convert to IMixins unless asked
 
-No usable git tags (or the tags belong to ExampleMod / another overlay) and version comes from `version.properties` / a hardcoded `@Mod` string:
+No usable git tags (or the tags belong to ExampleMod / another overlay) and version comes from `version.properties` / old `build.gradle` `version =` / a hardcoded `@Mod` string:
 
 ```
 gtnh.modules.gitVersion = false
@@ -182,7 +188,11 @@ Rewrite `compile` in `dependencies.gradle`:
 
 Resolution: GTNH Maven first (`com.github.GTNewHorizons:<Name>:<latest non-pre>:dev` or `:api`; latest = `maven-metadata.xml` `<release>`, not directory HTML). **Not** on that Maven: CoFHCore / CoFHLib, SonarCore, Calculator, AgriCraft, IC2. Then CurseMaven `curse.maven:<slug>-<projectId>:<fileId>` — prefer author `-dev` (MCP; no `rfg.deobf`); obfuscated universal needs `devOnlyNonPublishable(rfg.deobf(…))`. Never pin 2014 ivy/cursecdn URLs.
 
-Hard `@Mod` deps (`required-after:…`) must be on the **runtime** classpath of `runClient25`. The string is the dependency's `@Mod` / `mcmod.info` `modid` from the deobf jar — not `Loader.isModLoaded` and not a hyphenated display name. Optional integrations (`after:`, `@Optional`, `ModId|Compat*` `@Mod`s) stay `compileOnly`. A method named `getWailaInfo` is not a Waila import; add Waila only if `mcp.mobius` / `IWaila*` types appear.
+Hard `@Mod` deps (`required-after:…`) must be on the **runtime** classpath of `runClient25`. The string is the dependency's `@Mod` / `mcmod.info` `modid` from the deobf jar — not `Loader.isModLoaded` and not a hyphenated display name. `Class.forName` / a hard crash if a helper class is missing (CoFHLib) is also runtime-required: `devOnlyNonPublishable` (`rfg.deobf` if the curse file is obfuscated). CoFHLib standalone is enough; do not also add CoFHCore unless `cofh.core` types appear.
+
+`after:` / `Loader.isModLoaded` that only use `GameRegistry.findItem` / `findBlock` / `FMLInterModComms` — **no** compileOnly jar. Add compileOnly only when this mod imports that mod's types. A method named `getWailaInfo` is not a Waila import; add Waila only if `mcp.mobius` / `IWaila*` types appear.
+
+FG 1.2 `libs/*.jar`: rewrite to GTNH Maven / CurseMaven. Do not keep `files("libs/…")` when a coordinate exists (even if the local jar is `-dev`). After the rewrite, the local jar is waste.
 
 `runClient25` already pulls Hodgepodge / GTNHLib / lwjgl3ify / UniMixins as run-task shims. Add them to `dependencies.gradle` only if the port needs them published or at compile time. If the port itself needs Hodgepodge DSU mixins / GTNHLib in-game and must not publish them → `runtimeOnlyNonPublishable`.
 
@@ -192,10 +202,11 @@ File IDs, mismatch signatures, and FMP/CCC detail: [reference.md](reference.md).
 
 ## 7. Leftovers
 
-- Delete `src/main/java/com/myname/mymodid/` (and any `MyMod` `@Mod`) once `modGroup` is the real package. Two `@Mod` classes will both load
+- Delete `src/main/java/com/myname/mymodid/` (and any `MyMod` `@Mod`) once `modGroup` is the real package, **if that tree exists**. Two `@Mod` classes will both load. Current zip often ships none — no-op
 - Do **not** copy `disableSpotless = true` / `disableCheckstyle = true` from `.old`. First `spotlessApply` on a previously-unformatted tree rewrites the whole `src/*/java` set. Expected
 - `checkstyleMain` (star-import ban) often still passes after spotless on CoFH-style code. Disable checkstyle only if it actually fails
 - Hardcoded `public static final String version = "1.7.10R…"` with no `replaceIn` still becomes `Tags.VERSION` so the jar, `mcmod.info`, and `@Mod` agree after git version is turned off
+- Overlay leftover Groovy `build.gradle` (see §1) and `LICENSE-template` (original `LICENSE` stays)
 
 ## 8. Compile breakers
 
@@ -233,6 +244,15 @@ Then follow logs past resource reload / sound engine. Texture-missing and an int
 
 Stop the client after confirmation unless the user wants it left open.
 
+After a green `build` + `runClient25`, delete port cruft:
+
+- `*.old` / `*.back`
+- `LICENSE-template`
+- unused `eclipse-cleanup-settings.xml` / `eclipse-formatter-settings.xml` (Spotless owns style)
+- `libs/` jars rewritten to Maven; `rmdir` empty `libs/`
+
+Do not delete `README.md` / `VersionHistory.md` / original `LICENSE`.
+
 ## 10. `updateBuildScript` (only if asked)
 
 ```bash
@@ -252,4 +272,4 @@ Stop the client after confirmation unless the user wants it left open.
 - Official modding best practices: [Development](https://wiki.gtnewhorizons.com/wiki/Development) · [Code Style](https://wiki.gtnewhorizons.com/wiki/Code_Style)
 - Most advanced 1.7.10 example: [OmoshiroiKamo](https://github.com/Shigure-Ruiseki/OmoshiroiKamo)
 - Artifact IDs, hard-dep mismatch, FMP/CCC: [reference.md](reference.md)
-- Worked ports (Calculator, SonarCore): [examples.md](examples.md)
+- Worked ports (Calculator, SonarCore, SimplyJetpacks): [examples.md](examples.md)
