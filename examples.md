@@ -4,7 +4,7 @@ Consult when the target is Calculator, SonarCore, or a similar CoFH/optional-com
 
 ## Calculator 1.9.11 (Ollie Lansdell)
 
-State (1): `build.gradle.kts` already `gtnhconvention`.
+After overlay: `build.gradle.kts` is `gtnhconvention`.
 
 Identity:
 
@@ -46,7 +46,7 @@ Texture-missing is not a failure.
 
 ## SonarCore 1.1.3 (Ollie Lansdell)
 
-State (1): `build.gradle.kts` already `gtnhconvention`. FG 1.2 leftovers as `*.old`.
+After overlay: `build.gradle.kts` is `gtnhconvention`. FG 1.2 leftovers as `*.old`.
 
 Identity:
 

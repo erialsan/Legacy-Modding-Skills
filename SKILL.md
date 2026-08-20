@@ -2,18 +2,24 @@
 name: gtnh-template-port
 description: >-
   Ports a Forge 1.7.10 mod onto the GTNH ExampleMod1.7.10 template
-  (gradle.properties, mcmod.info tokens, dependencies.gradle, addon.gradle),
+  via official migration.zip overlay (backup originals, unzip, rewrite
+  gradle.properties / mcmod.info / dependencies.gradle / addon.gradle),
   then spotlessApply, build, and runClient25. Use when the user asks to
-  migrate/port a 1.7.10 mod to the GTNH template, bump an old GTNH RFG
-  build.gradle to gtnhconvention, adapt build.gradle.old / mcmod.info.old,
-  run updateBuildScript, or verify modern 1.7.10 via runClient25.
+  migrate/port a 1.7.10 mod to the GTNH template, overlay migration.zip,
+  bump an old GTNH RFG build.gradle to gtnhconvention, adapt
+  build.gradle.old / mcmod.info.old, run updateBuildScript, or verify
+  modern 1.7.10 via runClient25.
 ---
 
 # GTNH template port
 
-Old ForgeGradle 1.2 **or** old GTNH RFG template → latest ExampleMod1.7.10 (`gtnhconvention`) → `spotlessApply` → `build` → `runClient25`.
+Official ExampleMod1.7.10 migration ([docs/migration.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/migration.md)): backup originals → overlay [migration.zip](https://github.com/GTNewHorizons/ExampleMod1.7.10/releases/download/master-packages/migration.zip) → rewrite to template form. No user pre-work. Then identity, extra source roots, version tokens, dependency rewrite, leftovers, compile-breakers, `updateBuildScript`, and modern-Java verification.
 
-Template `docs/migration.md` is the generic overlay. This skill is identity, extra source roots, version tokens, dependency rewrite, leftovers, compile-breakers, `updateBuildScript`, and modern-Java verification.
+Official (always):
+
+- Procedure: [migration.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/migration.md) · [porting.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/porting.md) · [ExampleMod1.7.10](https://github.com/GTNewHorizons/ExampleMod1.7.10)
+- Modding best practices: [Development](https://wiki.gtnewhorizons.com/wiki/Development) · [Code Style](https://wiki.gtnewhorizons.com/wiki/Code_Style)
+- Most advanced 1.7.10 example: [OmoshiroiKamo](https://github.com/Shigure-Ruiseki/OmoshiroiKamo)
 
 Compile-breakers required for `build` / `runClient25` are in scope. Full API/feature ports are not, unless asked.
 
@@ -28,8 +34,9 @@ Compile-breakers required for `build` / `runClient25` are in scope. Full API/fea
 Copy and track:
 
 ```
-- [ ] Inventory (do not invent)
-- [ ] Overlay if not already on gtnhconvention
+- [ ] Backup build.gradle, gradle.properties, mcmod.info → .old (or .back)
+- [ ] Overlay migration.zip; rewrite to template form
+- [ ] Inventory from backups (do not invent)
 - [ ] Identity → gradle.properties
 - [ ] mcmod.info tokens
 - [ ] addon.gradle extras / version
@@ -42,9 +49,39 @@ Copy and track:
 
 Read [reference.md](reference.md) when resolving artifacts, hard-dep modids, FMP/CCC, or curse file IDs. Read [examples.md](examples.md) when the target is Calculator, SonarCore, or a similar CoFH/optional-compat tree.
 
-## 1. Inventory
+## 1. Backup + overlay
 
-Read, do not invent:
+No pre-work. Do not ask the user to overlay first.
+
+1. Copy (do not delete) these to the same path + `.old`. If that exists, `.back`:
+   - `build.gradle` / `build.gradle.kts`
+   - `gradle.properties`
+   - `src/main/resources/mcmod.info`
+
+2. Overlay the official zip:
+
+```
+curl -fsSL -o /tmp/gtnh-migration.zip \
+  https://github.com/GTNewHorizons/ExampleMod1.7.10/releases/download/master-packages/migration.zip
+unzip -o /tmp/gtnh-migration.zip
+rm /tmp/gtnh-migration.zip
+```
+
+Replaces wrapper, `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `dependencies.gradle`, `repositories.gradle`, `mcmod.info`, and ExampleMod sources. Backups stay. Official `migration.md` keeps `build.gradle` until deps are copied — backups make a full overlay safe.
+
+3. Rewrite **template** files from the backups (never edit `.old`/`.back` in place):
+   - identity → `gradle.properties` (§3)
+   - tokens → `mcmod.info` (§4)
+   - extra roots / version / custom tasks → `addon.gradle` (§5)
+   - old `repositories {}` → `repositories.gradle`, old `dependencies` → `dependencies.gradle` (§6)
+
+Skip the zip only if `build.gradle.kts` is already only `id("com.gtnewhorizons.gtnhconvention")`, `modId` is the real mod (not `mymodid`), and backups already exist. A lagging `settings.gradle.kts` version is then `updateBuildScript` (§10), not a zip redo.
+
+Restore deleted `.gitmodules` if a gitlink remains (`git ls-files -s <path>` mode `160000`). Origin may still be `GTNewHorizons/ExampleMod1.7.10` after overlay — do not trust its git tags as the mod version.
+
+## 2. Inventory
+
+Read, do not invent. Prefer `*.old` / `*.back` over the post-overlay template copies:
 
 - `build.gradle` / `build.gradle.old` — `group`, `archivesBaseName`, `minecraft.version`, `replaceIn` / `@VERSION@`, extra `sourceSets`, repos, `dependencies`
 - `gradle.properties` / `.old` — `modName`/`modId`/`modGroup`, mixins, AT, `disableSpotless`
@@ -54,16 +91,6 @@ Read, do not invent:
 - `.gitmodules` — extra source trees (e.g. BeefCore)
 - `src/api/java` **or** already-in-tree `src/main/java/{cofh,ic2,powercrystals}/` — vendored compile-only APIs. Do **not** also add matching maven deps (duplicate classes)
 - leftover ExampleMod tree `src/main/java/com/myname/mymodid/` — delete after `modGroup` is set
-
-## 2. Overlay
-
-Starting state:
-
-1. **Already on convention** — `build.gradle.kts` is only `id("com.gtnewhorizons.gtnhconvention")` and `settings.gradle.kts` uses `gtnhsettingsconvention`. Skip zip. Adapt identity + deps. A lagging `settings.gradle.kts` version is `updateBuildScript` (§10), not a zip redo.
-2. **Old GTNH RFG** — `build.gradle(.old)` is a huge `com.gtnewhorizons.retrofuturagradle` script (header `//version: <epoch>`), no `gtnhconvention`. Overlay [migration.zip](https://github.com/GTNewHorizons/ExampleMod1.7.10/releases/download/master-packages/migration.zip) **except** keep old `build.gradle` / `gradle.properties` as `*.old` until extras are copied. Then treat as (1).
-3. **Raw FG 1.2** — same zip as (2).
-
-Keep old files as `*.old`. Restore deleted `.gitmodules` if a gitlink remains (`git ls-files -s <path>` mode `160000`). Origin may still be `GTNewHorizons/ExampleMod1.7.10` after overlay — do not trust its git tags as the mod version.
 
 ## 3. Identity → `gradle.properties`
 
@@ -221,5 +248,8 @@ Stop the client after confirmation unless the user wants it left open.
 
 ## Additional resources
 
+- Official procedure: [migration.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/migration.md) · [porting.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/porting.md) · [ExampleMod1.7.10](https://github.com/GTNewHorizons/ExampleMod1.7.10)
+- Official modding best practices: [Development](https://wiki.gtnewhorizons.com/wiki/Development) · [Code Style](https://wiki.gtnewhorizons.com/wiki/Code_Style)
+- Most advanced 1.7.10 example: [OmoshiroiKamo](https://github.com/Shigure-Ruiseki/OmoshiroiKamo)
 - Artifact IDs, hard-dep mismatch, FMP/CCC: [reference.md](reference.md)
 - Worked ports (Calculator, SonarCore): [examples.md](examples.md)
