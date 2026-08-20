@@ -1,6 +1,6 @@
 # GTNH template port — worked examples
 
-Consult when the target is Calculator, SonarCore, SimplyJetpacks, or a similar CoFH/optional-compat tree. Workflow stays in [SKILL.md](SKILL.md); file IDs in [reference.md](reference.md).
+Consult when the target is Calculator, SonarCore, SimplyJetpacks, AppleMilkTea2, or a similar CoFH / Japanese-plugin / Eclipse-dump tree. Workflow stays in [SKILL.md](SKILL.md); file IDs in [reference.md](reference.md).
 
 ## Calculator 1.9.11 (Ollie Lansdell)
 
@@ -116,3 +116,62 @@ devOnlyNonPublishable(rfg.deobf("curse.maven:cofh-lib-220333:2388747"))
 Texture-missing is not a failure. Artifact `SimplyJetpacks-MC1.7.10-1.5.3.jar`.
 
 After green: dropped `*.old`, `LICENSE-template`, eclipse xml, unused `libs/` jar.
+
+## AppleMilkTea2 1.7.10_2.9m (defeatedcrow)
+
+Eclipse FG 1.2: root `java/` + `resources/`, no `gradle.properties`, no `src/main`. After overlay, moved to `src/main/{java,resources}`. Leftover Groovy `build.gradle` removed (`.old` was the backup).
+
+Identity:
+
+- `modName` = `Apple&Milk&Tea!`
+- `modId` = `DCsAppleMilk` (case-sensitive)
+- `modGroup` = `mods.defeatedcrow`
+- `customArchiveBaseName` = `AppleMilkTea2`
+- `apiPackage` = `api`
+- `coreModClass` = `asm.AppleMilkCorePlugin` (old `FMLCorePlugin` manifest)
+- `generateGradleTokenClass` = `mods.defeatedcrow.Tags`
+- `useModGroupForPublishing` = false
+
+`@Mod` / mcmod `1.7.10_2.9m` over stale gradle `1.7.10_2.8`. No usable tags → `gtnh.modules.gitVersion = false` and `addon.gradle` `ext.modVersion = "1.7.10_2.9m"`; `DCsAppleMilk` version = `Tags.VERSION`.
+
+Original extra `@Mod` `DCsNEIPluginAMT` and DummyModContainer `AppleMilkCore` stayed — not ExampleMod leftovers.
+
+Old ID expander pull-in deleted (`DepLoader`, `AMTdependencies.info`, `RequiredCoreModChecker`, PotionExtension login chat). `AppleMilkCorePlugin.getSetupClass()` → `null`. Hard runtime EndlessIDs:
+
+```
+devOnlyNonPublishable(rfg.deobf("curse.maven:fplib-665627:8169770"))
+devOnlyNonPublishable(rfg.deobf("curse.maven:chunkapi-844484:8609071"))
+devOnlyNonPublishable(rfg.deobf("curse.maven:endlessids-665730:8169819"))
+```
+
+`@Mod(dependencies = "required-after:Forge@[10.13.4.1448,);required-after:endlessids")`. Old mcmod `requiredMods` (`Minecraft Forge1.7.10 …`, `PotionExtention-…`) were not FML ids.
+
+Optional `compileOnly` (`transitive = false`; curse files `rfg.deobf`):
+
+- `NotEnoughItems:2.8.125-GTNH:dev` (not old CodeChickenLib — only `codechicken.nei.*`)
+- `CodeChickenCore:1.4.17:dev`
+- `AppleCore:3.3.11:dev`
+- `ForestryMC:4.11.36:dev` (internals; GTNH package drift in [reference.md](reference.md))
+- `BuildCraft:7.1.63:dev`
+- `Railcraft:9.17.30:dev`
+- IC2 experimental `:dev` (uses `ic2.core.block.TileEntityBarrel`)
+- CoFHLib / Thaumcraft / BoP / CraftGuide / MCEconomy2 / SextiarySector2 curse files in [reference.md](reference.md)
+
+Japanese, not on CurseForge — `~/Minecraft/Prop_mod/` (jars stay outside the repo; do not gitignore `*.jar` for this):
+
+```
+compileOnly(rfg.deobf(files("…/Prop_mod/Bamboo-2.6.8.5.jar")))
+compileOnly(rfg.deobf(files("…/Prop_mod/Wa-1.7.10.17.jar")))
+```
+
+TofuCraft / MapleTree were OreDictionary / `Class.forName` only — no compileOnly. TE4 plugin was IMC only. Unused old `ejml` compile dropped. `disableCheckstyle = true` after 71 star-import failures.
+
+`runClient25` success:
+
+- `LoadedMods [DCsAppleMilk, …, AppleMilkCore, …, endlessids, …, DCsNEIPluginAMT, …, endlessids_potion, …]`
+- `Forge Mod Loader has successfully loaded 27 mods`
+- `Sound engine started`
+
+Texture-missing is not a failure. Artifact `AppleMilkTea2-1.7.10_2.9m.jar`.
+
+After green: dropped `*.old`, `LICENSE-template`.

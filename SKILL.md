@@ -7,13 +7,14 @@ description: >-
   then spotlessApply, build, and runClient25. Use when the user asks to
   migrate/port a 1.7.10 mod to the GTNH template, overlay migration.zip,
   bump an old GTNH RFG build.gradle to gtnhconvention, adapt
-  build.gradle.old / mcmod.info.old, run updateBuildScript, or verify
-  modern 1.7.10 via runClient25.
+  build.gradle.old / mcmod.info.old, run updateBuildScript, verify
+  modern 1.7.10 via runClient25, move an Eclipse java/resources tree,
+  drop PotionExtension/DepLoader ID expanders, or require EndlessIDs.
 ---
 
 # GTNH template port
 
-Official ExampleMod1.7.10 migration ([docs/migration.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/migration.md)): backup originals → overlay [migration.zip](https://github.com/GTNewHorizons/ExampleMod1.7.10/releases/download/master-packages/migration.zip) → rewrite to template form. No user pre-work. Then identity, extra source roots, version tokens, dependency rewrite, leftovers, compile-breakers, `updateBuildScript`, and modern-Java verification.
+Official ExampleMod1.7.10 migration ([docs/migration.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/migration.md)): backup originals → overlay [migration.zip](https://github.com/GTNewHorizons/ExampleMod1.7.10/releases/download/master-packages/migration.zip) → rewrite to template form. No user pre-work. Then identity, source-layout cutover, extra source roots, version tokens, dependency rewrite, ID-expander cutover, leftovers, compile-breakers, `updateBuildScript`, and modern-Java verification.
 
 Official (always):
 
@@ -36,11 +37,13 @@ Copy and track:
 ```
 - [ ] Backup existing build.gradle, gradle.properties, mcmod.info → .old (or .back); skip missing
 - [ ] Overlay migration.zip; drop leftover Groovy build.gradle; chmod +x gradlew
+- [ ] Eclipse `java/`+`resources/` → `src/main/{java,resources}` if that is the main tree
 - [ ] Inventory from backups (do not invent)
 - [ ] Identity → gradle.properties
 - [ ] mcmod.info tokens
 - [ ] addon.gradle extras / version
 - [ ] dependencies.gradle + repositories.gradle
+- [ ] Strip PotionExtension/DepLoader pull-in; require EndlessIDs
 - [ ] Delete ExampleMod leftovers if present
 - [ ] Compile-breakers
 - [ ] spotlessApply → build → runClient25
@@ -48,7 +51,7 @@ Copy and track:
 - [ ] updateBuildScript only if asked
 ```
 
-Read [reference.md](reference.md) when resolving artifacts, hard-dep modids, FMP/CCC, curse file IDs, or an FG 1.2 tree with empty `dependencies {}`. Read [examples.md](examples.md) when the target is Calculator, SonarCore, SimplyJetpacks, or a similar CoFH/optional-compat tree.
+Read [reference.md](reference.md) when resolving artifacts, hard-dep modids, FMP/CCC, curse file IDs, EndlessIDs, ForestryMC internals, `~/Minecraft/Prop_mod/` jars, or an FG 1.2 tree with empty `dependencies {}`. Read [examples.md](examples.md) when the target is Calculator, SonarCore, SimplyJetpacks, AppleMilkTea2, or a similar CoFH / Japanese-plugin / Eclipse-dump tree.
 
 ## 1. Backup + overlay
 
@@ -79,6 +82,16 @@ Remove leftover Groovy `build.gradle` immediately (`.old` is the backup) so Grad
    - extra roots / version / custom tasks → `addon.gradle` (§5)
    - old `repositories {}` → `repositories.gradle`, old `dependencies` → `dependencies.gradle` (§6)
 
+If the main sources are Eclipse FG 1.2 at repo-root `java/` + `resources/` (no `src/main/java`), move them after overlay — do not leave the whole main tree as extra `srcDir`:
+
+```
+mkdir -p src/main
+mv java src/main/java
+mv resources src/main/resources
+```
+
+Spotless is `src/*/java/**/*.java`; `apiPackage` and `mcmod.info` expect `src/main`. Extra `srcDir` is only for additional trees (BeefCore, `src/api/java`).
+
 Skip the zip only if `build.gradle.kts` is already only `id("com.gtnewhorizons.gtnhconvention")`, `modId` is the real mod (not `mymodid`), and backups already exist. A lagging `settings.gradle.kts` version is then `updateBuildScript` (§10), not a zip redo.
 
 Restore deleted `.gitmodules` if a gitlink remains (`git ls-files -s <path>` mode `160000`). Origin may still be `GTNewHorizons/ExampleMod1.7.10` after overlay — do not trust its git tags as the mod version.
@@ -87,16 +100,18 @@ Restore deleted `.gitmodules` if a gitlink remains (`git ls-files -s <path>` mod
 
 Read, do not invent. Prefer `*.old` / `*.back` over the post-overlay template copies:
 
-- `build.gradle` / `build.gradle.old` — `group`, `archivesBaseName`, `version = "…"`, `minecraft.version`, `replaceIn` / `@VERSION@`, extra `sourceSets`, repos, `dependencies`, `jar { manifest { 'FMLAT': '…_at.cfg' } }`
+- `build.gradle` / `build.gradle.old` — `group`, `archivesBaseName`, `version = "…"`, `minecraft.version`, `replaceIn` / `@VERSION@`, extra `sourceSets`, repos, `dependencies`, `jar { manifest { 'FMLAT': '…_at.cfg' } }`, `'FMLCorePlugin': '…'`
 - `gradle.properties` / `.old` — `modName`/`modId`/`modGroup`, mixins, AT, `disableSpotless` (file may not exist)
-- `src/main/resources/mcmod.info` / `.old` — name, authors, URL, deps. `@Mod` may omit `name` — use mcmod
-- `version.properties` / changelog / old `version =` — numeric version if no git tags
-- `@Mod` class — `modid`, `name`, `version`, `dependencies`. `Loader.isModLoaded("X")` / old `requiredMods` spelling is **not** the FML id
+- `src/main/resources/mcmod.info` / root `resources/mcmod.info` / `.old` — name, authors, URL, deps. `@Mod` may omit `name` — use mcmod
+- `version.properties` / changelog / old `version =` / `@Mod version` — if they disagree, prefer `@Mod` / mcmod over a stale gradle `version =`
+- `@Mod` class — `modid`, `name`, `version`, `dependencies`. Extra original `@Mod`s (NEI plugin children) and `DummyModContainer` coremod ids are **not** ExampleMod leftovers. `Loader.isModLoaded("X")` / old `requiredMods` spelling is **not** the FML id
 - `Class.forName("cofh.lib…")` / a thrown "X is not installed" exception — runtime-required even with no `required-after`
+- `DepLoader` / `AMTdependencies.info` / `PotionExtension` / `RequiredCoreModChecker` — old ID-expander pull-in. Delete it; require EndlessIDs (§6)
 - `libs/*-dev.jar` and Eclipse `.classpath` / `eclipse-*-settings.xml` — FG 1.2 often has **no** `dependencies {}`; compile path was Eclipse + `libs/`
 - `.gitmodules` — extra source trees (e.g. BeefCore)
 - `src/api/java` **or** already-in-tree `src/main/java/{cofh,ic2,powercrystals}/` — vendored compile-only APIs. Do **not** also add matching maven deps (duplicate classes)
 - leftover ExampleMod tree `src/main/java/com/myname/mymodid/` — delete after `modGroup` is set if present (current zip often ships none)
+- old `compile` coords with **no** type imports (unused EJML; unused CodeChickenLib when only `codechicken.nei.*` appears) — drop
 
 ## 3. Identity → `gradle.properties`
 
@@ -116,6 +131,7 @@ Also set:
 - `includeWellKnownRepositories = true` (CurseMaven)
 - `useModGroupForPublishing = false` for GTNH-style `com.github.GTNewHorizons` coordinates (old template default; new defaults `true`)
 - carry `accessTransformersFile`, `usesMixins`, `mixinsPackage`, `mixinPlugin` from `.old` **or** from old `jar.manifest 'FMLAT'` (file already under `src/main/resources/META-INF/`). A hand-written `mixins.<modId>.json` is fine if its `package` matches `mixinsPackage`. Do not convert to IMixins unless asked
+- `coreModClass` from old `jar.manifest 'FMLCorePlugin'` (relative to `modGroup`: `asm.AppleMilkCorePlugin` + `modGroup = mods.defeatedcrow`)
 
 No usable git tags (or the tags belong to ExampleMod / another overlay) and version comes from `version.properties` / old `build.gradle` `version =` / a hardcoded `@Mod` string:
 
@@ -160,7 +176,7 @@ sourceSets.main.java.srcDir("BeefCore/src/main/java")
 sourceSets.main.java.srcDir("src/api/java")
 ```
 
-- Extra Java roots from old `sourceSets.main.java.srcDirs += …` go here
+- Extra Java roots from old `sourceSets.main.java.srcDirs += …` go here. That is **not** the Eclipse main tree — move `java/`/`resources/` to `src/main` (§1)
 - Init missing git submodules to the recorded commit (`git submodule status` line starting with `-`)
 - Spotless java target is `src/*/java/**/*.java` — submodule trees outside `src/` are not formatted
 - Custom Gradle tasks from the old script also go here
@@ -186,27 +202,34 @@ Rewrite `compile` in `dependencies.gradle`:
 | `@Optional` / `Loader.isModLoaded` / compile-only API | `compileOnly` (`transitive = false` if only the API jar) |
 | runtime in run tasks, do not publish | `runtimeOnlyNonPublishable` / `devOnlyNonPublishable` |
 
-Resolution: GTNH Maven first (`com.github.GTNewHorizons:<Name>:<latest non-pre>:dev` or `:api`; latest = `maven-metadata.xml` `<release>`, not directory HTML). **Not** on that Maven: CoFHCore / CoFHLib, SonarCore, Calculator, AgriCraft, IC2. Then CurseMaven `curse.maven:<slug>-<projectId>:<fileId>` — prefer author `-dev` (MCP; no `rfg.deobf`); obfuscated universal needs `devOnlyNonPublishable(rfg.deobf(…))`. Never pin 2014 ivy/cursecdn URLs.
+Resolution: GTNH Maven first (`com.github.GTNewHorizons:<Name>:<latest non-pre>:dev` or `:api`; latest = `maven-metadata.xml` `<release>`, not directory HTML). Artifact names that differ from the display name: Forestry is `ForestryMC`. **Not** on that Maven: CoFHCore / CoFHLib, SonarCore, Calculator, AgriCraft, IC2, EndlessIDs / FalsePatternLib / ChunkAPI, Thaumcraft, BoP, CraftGuide, MCEconomy2, SextiarySector2. Then CurseMaven `curse.maven:<slug>-<projectId>:<fileId>` — prefer author `-dev` (MCP; no `rfg.deobf`); obfuscated universal needs `devOnlyNonPublishable(rfg.deobf(…))` for runtime and `compileOnly(rfg.deobf(…))` for optional. Never pin 2014 ivy/cursecdn URLs.
+
+Need `:dev` not `:api` when this mod imports internals (`forestry.farming.logic.Crop`, `forestry.core.proxy.Proxies`, `ic2.core.block.TileEntityBarrel`). `codechicken.nei.*` → `NotEnoughItems:dev`; do not also add a standalone CodeChickenLib compile from the old script.
 
 Hard `@Mod` deps (`required-after:…`) must be on the **runtime** classpath of `runClient25`. The string is the dependency's `@Mod` / `mcmod.info` `modid` from the deobf jar — not `Loader.isModLoaded` and not a hyphenated display name. `Class.forName` / a hard crash if a helper class is missing (CoFHLib) is also runtime-required: `devOnlyNonPublishable` (`rfg.deobf` if the curse file is obfuscated). CoFHLib standalone is enough; do not also add CoFHCore unless `cofh.core` types appear.
 
-`after:` / `Loader.isModLoaded` that only use `GameRegistry.findItem` / `findBlock` / `FMLInterModComms` — **no** compileOnly jar. Add compileOnly only when this mod imports that mod's types. A method named `getWailaInfo` is not a Waila import; add Waila only if `mcp.mobius` / `IWaila*` types appear.
+`after:` / `Loader.isModLoaded` that only use `GameRegistry.findItem` / `findBlock` / `FMLInterModComms` / OreDictionary — **no** compileOnly jar. Add compileOnly only when this mod imports that mod's types. A method named `getWailaInfo` is not a Waila import; add Waila only if `mcp.mobius` / `IWaila*` types appear.
 
 FG 1.2 `libs/*.jar`: rewrite to GTNH Maven / CurseMaven. Do not keep `files("libs/…")` when a coordinate exists (even if the local jar is `-dev`). After the rewrite, the local jar is waste.
+
+Japanese mods not on CurseForge: place jars in `~/Minecraft/Prop_mod/` (outside the repo). Do not add `*.jar` to gitignore for this — jars are not in the repo. `compileOnly(rfg.deobf(files("${System.getProperty('user.home')}/Minecraft/Prop_mod/Name.jar")))`. Do not copy those jars into `libs/`.
+
+Old ID expanders (`PotionExtension`, chickenbone `DepLoader` that downloads it, `AMTdependencies.info`, login warnings that the expander is missing): delete the pull-in. `@Mod` `required-after:endlessids` and `mcmod.info` `requiredMods`/`dependencies` `["endlessids"]`. Runtime (obfuscated curse; `rfg.deobf`): EndlessIDs + FalsePatternLib + ChunkAPI. UniMixins is already a run-task shim — do not add it. File IDs: [reference.md](reference.md).
 
 `runClient25` already pulls Hodgepodge / GTNHLib / lwjgl3ify / UniMixins as run-task shims. Add them to `dependencies.gradle` only if the port needs them published or at compile time. If the port itself needs Hodgepodge DSU mixins / GTNHLib in-game and must not publish them → `runtimeOnlyNonPublishable`.
 
 No standalone `CodeChickenLib` on GTNH Maven — `codechicken.lib.*` is in `CodeChickenCore`. `compileOnly` ForgeMultipart does not pull CCC (runtime-scoped in the POM); add `compileOnly("com.github.GTNewHorizons:CodeChickenCore:<latest non-pre>:dev")` when compiling against `codechicken.lib` / `IChunkLoadTile`.
 
-File IDs, mismatch signatures, and FMP/CCC detail: [reference.md](reference.md).
+File IDs, mismatch signatures, FMP/CCC, Forestry package drift, Prop_mod: [reference.md](reference.md).
 
 ## 7. Leftovers
 
-- Delete `src/main/java/com/myname/mymodid/` (and any `MyMod` `@Mod`) once `modGroup` is the real package, **if that tree exists**. Two `@Mod` classes will both load. Current zip often ships none — no-op
+- Delete `src/main/java/com/myname/mymodid/` (and any `MyMod` `@Mod`) once `modGroup` is the real package, **if that tree exists**. Two `@Mod` classes will both load. Current zip often ships none — no-op. Do **not** delete original extra `@Mod`s (compat plugins) or the coremod `DummyModContainer`
 - Do **not** copy `disableSpotless = true` / `disableCheckstyle = true` from `.old`. First `spotlessApply` on a previously-unformatted tree rewrites the whole `src/*/java` set. Expected
-- `checkstyleMain` (star-import ban) often still passes after spotless on CoFH-style code. Disable checkstyle only if it actually fails
+- `checkstyleMain` (star-import ban) often still passes after spotless on CoFH-style code. Disable checkstyle only if it actually fails (large Japanese/CoFH trees with `import net.minecraft.init.*` will fail — then `disableCheckstyle = true`)
 - Hardcoded `public static final String version = "1.7.10R…"` with no `replaceIn` still becomes `Tags.VERSION` so the jar, `mcmod.info`, and `@Mod` agree after git version is turned off
 - Overlay leftover Groovy `build.gradle` (see §1) and `LICENSE-template` (original `LICENSE` stays)
+- After EndlessIDs cutover: `DepLoader.java`, `AMTdependencies.info`, `RequiredCoreModChecker`, PotionExtension login-chat handlers
 
 ## 8. Compile breakers
 
@@ -219,6 +242,9 @@ Fix only what blocks `compileJava` / `reobfJar` / first `spotlessApply`. Typical
 - `enableGenericInjection = true` (template default): `List<Entity> x = world.selectEntitiesWithinAABB(EntityItem.class, …)` → `List<EntityItem>`
 - `reobfJar`: `DO NOT USE __OBFID` — delete MCP `private static final String __OBFID = "CL_…"`
 - Non-UTF-8 sources (CP1252 `÷` = `0xF7` in MineTweaker handlers): `:spotlessJava` fails with only `Issue processing file: <path>`. Scan `src/**/*.java` for invalid UTF-8 **before** the first `spotlessApply`; recode CP1252 → UTF-8
+- `sun.misc.URLClassPath` / `sun.net.util.URLUtil` (chickenbone DepLoader) — gone on modern JDK. If that class only fetched PotionExtension, delete it rather than rewrite sun internals
+- GTNH Forestry: `forestry.core.vect.Vect` → `forestry.core.utils.vect.Vect` / `IVect` (`getX()`/`getY()`/`getZ()`); FarmLogic `cultivate`/`harvest` take `FarmDirection` not `ForgeDirection`; implement `isAcceptedWindfall(ItemStack)`
+- `wa.block.Blocks` → Japanese Wa jar in `~/Minecraft/Prop_mod/`
 
 Do not reformat by hand; `spotlessApply` owns style. After a manual edit that fails `spotlessJavaCheck` (including leftover blank lines from a delete), re-run `spotlessApply` and `build`.
 
@@ -271,5 +297,5 @@ Do not delete `README.md` / `VersionHistory.md` / original `LICENSE`.
 - Official procedure: [migration.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/migration.md) · [porting.md](https://github.com/GTNewHorizons/ExampleMod1.7.10/blob/master/docs/porting.md) · [ExampleMod1.7.10](https://github.com/GTNewHorizons/ExampleMod1.7.10)
 - Official modding best practices: [Development](https://wiki.gtnewhorizons.com/wiki/Development) · [Code Style](https://wiki.gtnewhorizons.com/wiki/Code_Style)
 - Most advanced 1.7.10 example: [OmoshiroiKamo](https://github.com/Shigure-Ruiseki/OmoshiroiKamo)
-- Artifact IDs, hard-dep mismatch, FMP/CCC: [reference.md](reference.md)
-- Worked ports (Calculator, SonarCore, SimplyJetpacks): [examples.md](examples.md)
+- Artifact IDs, hard-dep mismatch, FMP/CCC, EndlessIDs, ForestryMC, Prop_mod: [reference.md](reference.md)
+- Worked ports (Calculator, SonarCore, SimplyJetpacks, AppleMilkTea2): [examples.md](examples.md)
