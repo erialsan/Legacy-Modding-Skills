@@ -1,5 +1,10 @@
 # Bundle Update Log
 
+## 2026-11-26
+
+- Migrated the bundle to OKF v0.3 and added bundle title, description, and license metadata.
+- Added a [README](./README.md) with a guide to selecting a target template, using the playbooks with a coding agent, and verifying the migrated mod.
+
 ## 2026-11-15
 
 - **Rename**: Named the [shared skill entry](./skills/Legacy-Modding-Skills/SKILL.md) Legacy-Modding-Skill.
